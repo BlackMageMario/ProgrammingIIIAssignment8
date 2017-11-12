@@ -11,6 +11,7 @@ import java.io.DataInputStream;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.PrintStream;
+import java.io.PrintWriter;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.util.ArrayList;
@@ -20,25 +21,18 @@ import java.util.logging.Logger;
 import javax.swing.JFrame;
 import javax.swing.JTextArea;
 
-public class Server extends JFrame implements Runnable{
+public class Server extends JFrame {
     public static int portNumber = 4444;
-    private static String welcomeMessage = "Welcome to the server. Beginning message history.";
-    private static String historyFileName = "";
-    private final ArrayBlockingQueue<Socket> clients;
-    private ServerSocket server;
-    private static JTextArea outputText;
+    private static Server instance;
+    public String welcomeMessage = "Welcome to the server. Beginning message history.";
+    private static ArrayList<PrintWriter> writers = new ArrayList<PrintWriter>();
+    private JTextArea outputText;
     protected Server()
     {
         super("Server: Assignment 8");
-        clients = new ArrayBlockingQueue<Socket>(100);
-        try
+        if(instance == null)
         {
-            server = new ServerSocket(portNumber);
-        }
-        catch(IOException ioException)
-        {
-            ioException.printStackTrace();
-            System.exit(1);
+            instance = this;
         }
         outputText = new JTextArea();
         outputText.setText("Server started.");
@@ -47,76 +41,40 @@ public class Server extends JFrame implements Runnable{
         container.add(outputText);
         setSize(400, 400);
         setVisible(true);
-        
     }
-    public static String historyFileN()
+    public static Server returnCurrentServer()
     {
-        return historyFileName;//maybe return the actual file
+        return instance;
     }
-    private void printMessageRecieved(String message)
+    public void appendToOutput(String output)
     {
-        outputText.append("\n" + message);//really this should go to other clients
-        //but that's OK
+        outputText.append("\n" + output);
+    }
+    public ArrayList<PrintWriter> getWriters()
+    {
+        return writers;
+    }
+    public void removeWriter(PrintWriter writer)
+    {
+        writers.remove(writer);
+    }
+    public void addWriter(PrintWriter writer)
+    {
+        writers.add(writer);
     }
     public static void main(String... args) throws IOException
     {
         Server theServer = new Server();
         theServer.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
-        theServer.run();
-    }
-
-    @Override
-    public void run() {
-        int exTimes = 0;
-        while(true)
-        {
-            System.out.println("We got here");
-            synchronized(clients)
+        ServerSocket server = new ServerSocket(portNumber);
+        try {
+            while(true)
             {
-                System.out.println(clients.size());
-                if(!clients.isEmpty())
-                {
-                    Socket sock = null;
-                    try {
-                        sock  = clients.take();
-                    } catch (InterruptedException ex) {
-                        System.err.println(ex.getMessage());
-                    }
-                    try
-                    {
-                        String reply;
-                        PrintStream out = new PrintStream(sock.getOutputStream());
-                        BufferedReader in = new BufferedReader(
-                            new InputStreamReader(
-                                sock.getInputStream()));
-                        if((reply = in.readLine()) != null)//this needs to be multithreaded
-                        {
-                            System.out.println("reply");
-                            printMessageRecieved(reply);
-                        }   
-                    }
-                    catch(IOException ex)
-                    {
-                        System.out.println(ex.getMessage());
-                    }  
-                    clients.offer(sock);
-                }
-                else
-                {
-                    exTimes++;
-                    try
-                    {
-                        System.out.println("Execution: " + exTimes);
-                        Socket socket;
-                        socket = server.accept();
-                        clients.offer(socket);
-                    }
-                    catch(IOException ex)
-                    {
-                        System.out.println(ex.getMessage());
-                    }  
-                }  
+                new ClientInfo(server.accept()).start();
             }
+        } catch (IOException ex) {
+            System.err.println(ex.getMessage());
+            System.exit(1);
         }
     }
-}
+ }
